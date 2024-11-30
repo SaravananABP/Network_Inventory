@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -31,22 +32,23 @@ public class LocationController {
     @Autowired
     private BuildingRepo buildingRepo;
 
-    // Country CRUD operations
+    // Country
 
     @PostMapping("/create/country")
     private JSONObject createCountry(@RequestBody Country country) {
         JSONObject response = new JSONObject();
         String countryName = formatName(country.getName());
-
-        if (countryRepo.findByName(countryName)==null) {
-            country.setName(countryName);
-            countryRepo.save(country);
+        if (countryRepo.checkExistsByName(countryName)) {
+            Country country1=new Country();
+            country1.setName(countryName);
+            country1.setDescription(country.getDescription());
+            countryRepo.save(country1);
             response.put("status", "success");
             response.put("response", "Successfully created");
-        } else {
-            response.put("status", "failure");
-            response.put("response", "Country already exists");
+            return response;
         }
+        response.put("status", "failure");
+        response.put("response", "Country already exists");
         return response;
     }
 
@@ -90,15 +92,14 @@ public class LocationController {
         return response;
     }
 
-    // State  operations
+    // State
 
     @PostMapping("/create/state/{countryName}")
     private JSONObject createState(@RequestBody State state, @PathVariable String countryName) {
         JSONObject response = new JSONObject();
         String stateName = formatName(state.getName());
-        if (stateRepo.findByName(stateName) == null) {
-            stateRepo.save(state);
-            stateRepo.createState(countryName, stateName);
+        if (stateRepo.verifyExitingName(countryName,stateName)) {
+            stateRepo.createState(countryName, stateName,state.getDescription());
             response.put("status", "success");
             response.put("response", "Successfully created");
         } else {
@@ -110,9 +111,15 @@ public class LocationController {
 
     @GetMapping("/get/{countryName}/allstates")
     private JSONObject getAllStatesByCountry(@PathVariable String countryName) {
+        countryName=formatName(countryName);
         JSONObject response = new JSONObject();
-        response.put("status", "success");
-        response.put("response", stateRepo.findAllStateByCountry(countryName));
+        if (!countryRepo.checkExistsByName(countryName)) {
+            response.put("status", "success");
+            response.put("response", stateRepo.findAllStateByCountry(countryName));
+            return response;
+        }
+        response.put("status","failed");
+        response.put("response","Can't find the county");
         return response;
     }
 
@@ -148,17 +155,21 @@ public class LocationController {
         return response;
     }
 
-    // City CRUD operations
+    // City
 
     @PostMapping("/create/city/{stateName}")
     private JSONObject createCity(@RequestBody City city, @PathVariable String stateName) {
         JSONObject response = new JSONObject();
         String cityName = formatName(city.getName());
 
-        if (cityRepo.findByName(cityName) == null) {
-            city.setName(cityName);
-            cityRepo.save(city);
-            cityRepo.createCity(stateName, cityName);
+        if (cityRepo.verifyExitingCity(stateName,cityName)) {
+            City newCity=new City();
+            newCity.setName(cityName);
+            newCity.setDescription(city.getDescription());
+
+            cityRepo.save(newCity);
+
+            cityRepo.createCity(stateName, cityName,city.getDescription());
             response.put("status", "success");
             response.put("response", "Successfully created");
         } else {
@@ -208,17 +219,16 @@ public class LocationController {
         return response;
     }
 
-    // Building CRUD operations
+    // Building
 
     @PostMapping("/create/building/{cityName}")
     private JSONObject createBuilding(@RequestBody Building building, @PathVariable String cityName) {
         JSONObject response = new JSONObject();
         String buildingName = formatName(building.getName());
 
-        if (buildingRepo.findByName(buildingName) == null) {
-            building.setName(buildingName);
-            buildingRepo.save(building);
-            buildingRepo.createBuilding(cityName, buildingName);
+        if (buildingRepo.verifyExitingName(cityName,buildingName)) {
+            buildingRepo.createBuilding(cityName, buildingName,building.getAddress(),
+                    building.getFloor(),building.getDescription());
             response.put("status", "success");
             response.put("response", "Successfully created");
         } else {
@@ -230,9 +240,16 @@ public class LocationController {
 
     @GetMapping("/get/{cityName}/allbuildings")
     private JSONObject getAllBuildingsByCity(@PathVariable String cityName) {
+        cityName=formatName(cityName);
         JSONObject response = new JSONObject();
-        response.put("status", "success");
-        response.put("response", buildingRepo.findAllBuildingsByCity(cityName));
+        List<Building> allBuildingsDetails=buildingRepo.findAllBuildingsByCity(cityName);
+        if(!allBuildingsDetails.isEmpty()) {
+            response.put("status", "success");
+            response.put("response", allBuildingsDetails);
+            return response;
+        }
+        response.put("status", "Failed");
+        response.put("response", "unable to find the cityName");
         return response;
     }
 
@@ -258,7 +275,7 @@ public class LocationController {
     private JSONObject dropBuilding(@PathVariable Long id) {
         JSONObject response = new JSONObject();
         if (buildingRepo.existsById(id)) {
-            buildingRepo.deleteById(id);
+            buildingRepo.deleteBuilding(id);
             response.put("status", "success");
             response.put("response", "Deleted successfully");
         } else {

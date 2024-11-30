@@ -1,0 +1,5 @@
+crete country -> add error if create new country It shows like already exits
+                want to fix and description as well (updated)
+state -> make camel case to find the country
+* city  -> validate null, values for all the apis
+
